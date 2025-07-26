@@ -1,3 +1,12 @@
+from flask import Flask, request, jsonify, send_file
+import requests, os
+
+app = Flask(__name__)
+
+DOWNLOAD_FOLDER = 'downloads'
+if not os.path.exists(DOWNLOAD_FOLDER):
+    os.makedirs(DOWNLOAD_FOLDER)
+
 @app.route('/')
 def index():
     return '''
@@ -28,3 +37,28 @@ def index():
     </body>
     </html>
     '''
+
+@app.route('/download', methods=['POST'])
+def download_file():
+    url = request.json.get("url")
+    filename = url.split("/")[-1]
+    filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+
+    try:
+        with requests.get(url, stream=True) as r:
+            r.raise_for_status()
+            with open(filepath, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+        return jsonify({"file": filepath})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/get', methods=['GET'])
+def get_file():
+    filename = request.args.get("filename")
+    filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+    return send_file(filepath, as_attachment=True)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
